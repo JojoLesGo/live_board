@@ -21,7 +21,6 @@ class MyApp extends StatelessWidget {
   }
 }
 
-  
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key, required this.title});
 
@@ -47,7 +46,7 @@ class LoginPageState extends State<LoginPage> {
   void _onLoginPressed() async {
     final username = _usernameController.text;
     final password = _passwordController.text;
-    
+
     // Get user from database
     final user = await DatabaseHelper.instance.getUserByUsername(username);
 
@@ -79,7 +78,6 @@ class LoginPageState extends State<LoginPage> {
       );
     }
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -120,7 +118,6 @@ class LoginPageState extends State<LoginPage> {
   }
 }
 
-
 class ApplicationState extends ChangeNotifier {
   ApplicationState() {
     init();
@@ -137,7 +134,6 @@ class ApplicationState extends ChangeNotifier {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
-
 
     FirebaseAuth.instance.userChanges().listen((user) {
       if (user != null) {
