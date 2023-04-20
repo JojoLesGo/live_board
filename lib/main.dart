@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dbHelper.dart';
 
 void main() {
   runApp(const MyApp());
@@ -13,15 +14,6 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'LiveBoard',
       theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // Try running your application with "flutter run". You'll see the
-        // application has a blue toolbar. Then, without quitting the app, try
-        // changing the primarySwatch below to Colors.green and then invoke
-        // "hot reload" (press "r" in the console where you ran "flutter run",
-        // or simply save your changes to "hot reload" in a Flutter IDE).
-        // Notice that the counter didn't reset back to zero; the application
-        // is not restarted.
         primarySwatch: Colors.blue,
       ),
       home: const LoginPage(title: 'LiveBoard Login Page'),
@@ -52,12 +44,42 @@ class LoginPageState extends State<LoginPage> {
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
 
-  void _onLoginPressed() {
+  void _onLoginPressed() async {
     final username = _usernameController.text;
     final password = _passwordController.text;
+    
+    // Get user from database
+    final user = await DatabaseHelper.instance.getUserByUsername(username);
 
-    // Perform login validation here...
+    // Validate login
+    if (user != null && user.password == password) {
+      // Navigate to home page if login is successful
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => const HomePage()),
+      );
+    } else {
+      // Show error message if login fails
+      showDialog(
+        context: context,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            title: const Text('Login failed'),
+            content: const Text('Invalid username or password.'),
+            actions: <Widget>[
+              TextButton(
+                child: const Text('OK'),
+                onPressed: () {
+                  Navigator.of(context).pop();
+                },
+              ),
+            ],
+          );
+        },
+      );
+    }
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -87,7 +109,7 @@ class LoginPageState extends State<LoginPage> {
               ),
               const SizedBox(height: 32),
               ElevatedButton(
-                onPressed: _onLoginPressed,
+                onPressed: _onLoginPressed(context),
                 child: const Text('Login'),
               ),
             ],
@@ -95,5 +117,89 @@ class LoginPageState extends State<LoginPage> {
         ),
       ),
     );
+  }
+}
+
+
+class ApplicationState extends ChangeNotifier {
+  ApplicationState() {
+    init();
+  }
+
+  AuthStatus _loginState = AuthStatus.emailAddress;
+  AuthStatus get signOnState => _loginState;
+
+  String? _email;
+  String? get email => _email;
+
+  Future<void> init() async {
+    WidgetsFlutterBinding.ensureInitialized();
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+
+
+    FirebaseAuth.instance.userChanges().listen((user) {
+      if (user != null) {
+        _loginState = AuthStatus.signedIn;
+      } else {
+        _loginState = AuthStatus.emailAddress;
+      }
+      notifyListeners();
+    });
+  }
+
+  Future<void> checkEmail(
+    String email,
+    void Function(FirebaseAuthException e) errorCallback,
+  ) async {
+    try {
+      var methods =
+          await FirebaseAuth.instance.fetchSignInMethodsForEmail(email);
+      if (methods.contains('password')) {
+        _loginState = AuthStatus.password;
+      } else {
+        _loginState = AuthStatus.registration;
+      }
+      _email = email;
+      notifyListeners();
+    } on FirebaseAuthException catch (e) {
+      errorCallback(e);
+    }
+  }
+
+  Future<void> signOn(
+    String email,
+    String password,
+    void Function(FirebaseAuthException e) errorCallback,
+  ) async {
+    try {
+      await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+    } on FirebaseAuthException catch (e) {
+      errorCallback(e);
+    }
+  }
+
+  void cancelSignUp() {
+    _loginState = AuthStatus.emailAddress;
+    notifyListeners();
+  }
+
+  Future<void> signUp(String email, String displayName, String password,
+      void Function(FirebaseAuthException e) errorCallback) async {
+    try {
+      var credential = await FirebaseAuth.instance
+          .createUserWithEmailAndPassword(email: email, password: password);
+      await credential.user!.updateDisplayName(displayName);
+    } on FirebaseAuthException catch (e) {
+      errorCallback(e);
+    }
+  }
+
+  void signOut() {
+    FirebaseAuth.instance.signOut();
   }
 }
